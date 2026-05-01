@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📍 Location Tracker</title>
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+    
+    <!-- Leaflet для карты -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1a1a2e;
+            color: white;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 480px;
+            margin: 0 auto;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .consent-screen {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .consent-screen.hidden {
+            display: none;
+        }
+
+        .icon {
+            font-size: 80px;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            font-size: 24px;
+            margin-bottom: 30px;
+        }
+
+        .info-cards {
+            width: 100%;
+            margin-bottom: 30px;
+        }
+
+        .info-card {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+            text-align: left;
+        }
+
+        .info-card h3 {
+            font-size: 16px;
+            margin-bottom: 8px;
+            color: #4CAF50;
+        }
+
+        .info-card p {
+            font-size: 14px;
+            color: #ccc;
+            margin-bottom: 4px;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 16px;
+            border: none;
+            border-radius: 12px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+            margin-bottom: 12px;
+        }
+
+        .btn:active {
+            transform: scale(0.98);
+        }
+
+        .btn-accept {
+            background: linear-gradient(135deg, #4CAF50, #45a049);
+            color: white;
+        }
+
+        .btn-deny {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+        }
+
+        .disclaimer {
+            font-size: 12px;
+            color: #666;
+            margin-top: 10px;
+        }
+
+        .main-screen {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .main-screen.hidden {
+            display: none;
+        }
+
+        #map {
+            flex: 1;
+            z-index: 1;
+        }
+
+        .controls {
+            background: rgba(26, 26, 46, 0.95);
+            padding: 20px;
+            border-radius: 20px 20px 0 0;
+            margin-top: -20px;
+            z-index: 2;
+        }
+
+        .user-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .user-id {
+            font-size: 12px;
+            color: #666;
+            background: rgba(255,255,255,0.1);
+            padding: 4px 8px;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #666;
+        }
+
+        .status-dot.active {
+            background: #4CAF50;
+            box-shadow: 0 0 10px #4CAF50;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.4); }
+            70% { box-shadow: 0 0 0 10px rgba(76, 175, 80, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(76, 175, 80, 0); }
+        }
+
+        .toggle-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(255,255,255,0.1);
+            padding: 16px;
+            border-radius: 12px;
+            margin-bottom: 12px;
+        }
+
+        .switch {
+            position: relative;
+            width: 52px;
+            height: 28px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #666;
+            transition: 0.3s;
+            border-radius: 28px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 20px;
+            width: 20px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: 0.3s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: #4CAF50;
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(24px);
+        }
+
+        .tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 12px;
+            background: rgba(255,255,255,0.1);
+            border: none;
+            color: white;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .tab.active {
+            background: #4CAF50;
+        }
+
+        .user-id-input {
+            flex: 1;
+            padding: 12px;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 8px;
+            color: white;
+            font-size: 14px;
+        }
+
+        .user-id-input::placeholder {
+            color: #666;
+        }
+
+        .coordinates {
+            font-size: 11px;
+            color: #666;
+            margin-top: 8px;
+            text-align: center;
+        }
+
+        .revoke-btn {
+            width: 100%;
+            padding: 12px;
+            background: rgba(244, 67, 54, 0.2);
+            border: 1px solid rgba(244, 67, 54, 0.5);
+            color: #f44336;
+            border-radius: 8px;
+            margin-top: 16px;
+            cursor: pointer;
+        }
+
+        .notification {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #333;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            z-index: 1000;
+            animation: slideDown 0.3s ease-out;
+        }
+
+        @keyframes slideDown {
+            from {
+                transform: translate(-50%, -100%);
+                opacity: 0;
+            }
+            to {
+                transform: translate(-50%, 0);
+                opacity: 1;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- ЭКРАН СОГЛАСИЯ -->
+        <div class="consent-screen" id="consentScreen">
+            <div class="icon">🛡️</div>
+            <h1>Отслеживание местоположения</h1>
+            
+            <div class="info-cards">
+                <div class="info-card">
+                    <h3>📱 Это приложение будет:</h3>
+                    <p>• Отслеживать ваше местоположение</p>
+                    <p>• Показывать вас на карте</p>
+                    <p>• Делиться координатами с теми, у кого есть ваш ID</p>
+                </div>
+                
+                <div class="info-card">
+                    <h3>🔒 Вы полностью контролируете:</h3>
+                    <p>• Когда отслеживание включено</p>
+                    <p>• Кто может видеть ваше местоположение</p>
+                    <p>• Можете удалить все данные в 1 клик</p>
+                </div>
+            </div>
+            
+            <button class="btn btn-accept" onclick="giveConsent()">
+                ✅ Я согласен, включить отслеживание
+            </button>
+            <button class="btn btn-deny" onclick="denyConsent()">
+                ❌ Я не согласен
+            </button>
+            
+            <p class="disclaimer">
+                Ваши данные хранятся безопасно в Firebase. Вы можете отозвать согласие в любой момент.
+            </p>
+        </div>
+
+        <!-- ОСНОВНОЙ ЭКРАН -->
+        <div class="main-screen hidden" id="mainScreen">
+            <div id="map"></div>
+            
+            <div class="controls">
+                <div class="user-info">
+                    <div class="status-indicator">
+                        <div class="status-dot" id="statusDot"></div>
+                        <span id="statusText">⚫ Не отслеживается</span>
+                    </div>
+                    <span class="user-id" id="myUserId" onclick="copyUserId()" title="Нажмите, чтобы скопировать ID"></span>
+                </div>
+                
+                <div class="tabs">
+                    <button class="tab active" id="myLocationTab" onclick="switchTab('my')">📍 Моя карта</button>
+                    <button class="tab" id="trackTab" onclick="switchTab('track')">👁️ Следить</button>
+                </div>
+                
+                <!-- Моё отслеживание -->
+                <div id="myPanel">
+                    <div class="toggle-container">
+                        <div>
+                            <strong>Передача геолокации</strong>
+                            <p style="color: #999; font-size: 12px; margin-top: 4px;">
+                                Ваше местоположение передаётся в реальном времени
+                            </p>
+                        </div>
+                        <label class="switch">
+                            <input type="checkbox" id="trackingToggle" onchange="toggleTracking(this.checked)">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div class="coordinates" id="myCoordinates">Ожидание GPS...</div>
+                </div>
+                
+                <!-- Панель отслеживания другого -->
+                <div id="trackPanel" style="display: none;">
+                    <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+                        <input type="text" 
+                               class="user-id-input" 
+                               id="trackUserId" 
+                               placeholder="Вставьте ID пользователя">
+                        <button class="btn btn-accept" style="width: auto; margin: 0; padding: 12px 20px;" 
+                                onclick="startWatching()">
+                            👁️
+                        </button>
+                    </div>
+                    <button class="btn btn-deny" style="width: auto; margin: 0; padding: 8px 16px; font-size: 12px;" 
+                            onclick="stopWatching()">
+                        ⏹️ Остановить отслеживание
+                    </button>
+                    <div class="coordinates" id="trackedCoordinates"></div>
+                </div>
+                
+                <button class="revoke-btn" onclick="revokeConsent()">
+                    ⚠️ Отозвать согласие и удалить ВСЕ данные
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ============ КОНФИГУРАЦИЯ FIREBASE ============
+        const firebaseConfig = {
+            apiKey: "AIzaSyAm7CQgjXA6j9HLR10Rtu1GN77L67AigBY",
+            authDomain: "jhgguhoj.firebaseapp.com",
+            databaseURL: "https://jhgguhoj-default-rtdb.firebaseio.com",
+            projectId: "jhgguhoj",
+            storageBucket: "jhgguhoj.firebasestorage.app",
+            messagingSenderId: "1050794345152",
+            appId: "1:1050794345152:web:e84017d7bbf42c3838a325",
+            measurementId: "G-RNMCELJ1W6"
+        };
+
+        // Инициализация Firebase
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+
+        // ============ ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ============
+        let userId = localStorage.getItem('userId') || generateUserId();
+        let map = null;
+        let myMarker = null;
+        let trackedMarker = null;
+        let watchId = null;
+        let trackingEnabled = false;
+
+        // ============ ФУНКЦИИ ============
+        
+        function generateUserId() {
+            const id = 'user_' + Math.random().toString(36).substr(2, 9);
+            localStorage.setItem('userId', id);
+            return id;
+        }
+
+        function giveConsent() {
+            localStorage.setItem('consentGiven', 'true');
+            localStorage.setItem('consentDate', new Date().toISOString());
+            
+            database.ref('users/' + userId + '/consent').set({
+                given: true,
+                date: new Date().toISOString()
+            });
+
+            document.getElementById('consentScreen').classList.add('hidden');
+            document.getElementById('mainScreen').classList.remove('hidden');
+            document.getElementById('myUserId').textContent = 'ID: ' + userId;
+            
+            initMap();
+            showNotification('✅ Согласие сохранено');
+        }
+
+        function denyConsent() {
+            alert('Без согласия отслеживание невозможно.');
+            window.location.reload();
+        }
+
+        function copyUserId() {
+            navigator.clipboard.writeText(userId);
+            showNotification('📋 ID скопирован: ' + userId);
+        }
+
+        function initMap() {
+            map = L.map('map').setView([55.7558, 37.6173], 13);
+            
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap'
+            }).addTo(map);
+
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        const { latitude, longitude } = position.coords;
+                        map.setView([latitude, longitude], 15);
+                        updateMyMarker(latitude, longitude);
+                        
+                        // Если tracking был включен ранее
+                        if (localStorage.getItem('trackingEnabled') === 'true') {
+                            document.getElementById('trackingToggle').checked = true;
+                            startTracking();
+                        }
+                    },
+                    () => console.log('GPS пока недоступен')
+                );
+            }
+        }
+
+        function updateMyMarker(lat, lng) {
+            if (myMarker) {
+                myMarker.setLatLng([lat, lng]);
+            } else {
+                myMarker = L.marker([lat, lng], {
+                    icon: L.divIcon({
+                        html: '<div style="background: #4CAF50; width: 24px; height: 24px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 15px #4CAF50;"></div>',
+                        className: ''
+                    })
+                }).addTo(map).bindPopup('📍 Вы здесь');
+            }
+            
+            document.getElementById('myCoordinates').textContent = 
+                `📍 ${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+            
+            if (trackingEnabled) {
+                sendLocationToFirebase(lat, lng);
+            }
+        }
+
+        function sendLocationToFirebase(lat, lng) {
+            database.ref('users/' + userId + '/location').set({
+                latitude: lat,
+                longitude: lng,
+                timestamp: Date.now()
+            }).catch(err => console.error('Firebase error:', err));
+        }
+
+        function toggleTracking(enabled) {
+            if (enabled) {
+                if (confirm('Включить отслеживание?\n\nВаше местоположение будет передаваться. Любой, у кого есть ваш ID, сможет вас видеть.\n\nВы всегда можете это отключить.')) {
+                    startTracking();
+                } else {
+                    document.getElementById('trackingToggle').checked = false;
+                }
+            } else {
+                stopTracking();
+            }
+        }
+
+        function startTracking() {
+            if (!navigator.geolocation) {
+                alert('Геолокация не поддерживается');
+                document.getElementById('trackingToggle').checked = false;
+                return;
+            }
+
+            navigator.geolocation.getCurrentPosition(
+                () => {
+                    trackingEnabled = true;
+                    localStorage.setItem('trackingEnabled', 'true');
+
+                    watchId = navigator.geolocation.watchPosition(
+                        (position) => {
+                            const { latitude, longitude } = position.coords;
+                            updateMyMarker(latitude, longitude);
+                            map.setView([latitude, longitude], map.getZoom());
+                        },
+                        (error) => console.error('GPS error:', error),
+                        { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+                    );
+
+                    database.ref('users/' + userId + '/settings').update({ trackingEnabled: true });
+                    document.getElementById('statusDot').classList.add('active');
+                    document.getElementById('statusText').textContent = '🟢 Отслеживается';
+                    showNotification('📍 Отслеживание включено');
+                },
+                () => {
+                    alert('Не удалось получить GPS. Проверьте настройки телефона.');
+                    document.getElementById('trackingToggle').checked = false;
+                }
+            );
+        }
+
+        function stopTracking() {
+            trackingEnabled = false;
+            localStorage.removeItem('trackingEnabled');
+            
+            if (watchId) {
+                navigator.geolocation.clearWatch(watchId);
+                watchId = null;
+            }
+
+            database.ref('users/' + userId + '/settings').update({ trackingEnabled: false });
+            database.ref('users/' + userId + '/location').remove();
+
+            document.getElementById('statusDot').classList.remove('active');
+            document.getElementById('statusText').textContent = '⚫ Не отслеживается';
+            document.getElementById('trackingToggle').checked = false;
+            showNotification('📍 Отслеживание остановлено, данные удалены');
+        }
+
+        function startWatching() {
+            const targetUserId = document.getElementById('trackUserId').value.trim();
+            if (!targetUserId) return alert('Введите ID пользователя');
+
+            database.ref('users/' + targetUserId + '/consent').once('value').then(snapshot => {
+                const consent = snapshot.val();
+                if (!consent || !consent.given) {
+                    return alert('Пользователь не дал согласие на отслеживание');
+                }
+
+                database.ref('users/' + targetUserId + '/location').on('value', (snapshot) => {
+                    const loc = snapshot.val();
+                    if (loc) {
+                        updateTrackedMarker(loc.latitude, loc.longitude, targetUserId);
+                    } else {
+                        document.getElementById('trackedCoordinates').textContent = 'Пользователь отключил отслеживание';
+                    }
+                });
+
+                showNotification('👁️ Отслеживаем ' + targetUserId);
+            });
+        }
+
+        function stopWatching() {
+            const targetUserId = document.getElementById('trackUserId').value.trim();
+            if (targetUserId) {
+                database.ref('users/' + targetUserId + '/location').off();
+            }
+            if (trackedMarker) {
+                map.removeLayer(trackedMarker);
+                trackedMarker = null;
+            }
+            document.getElementById('trackedCoordinates').textContent = '';
+            showNotification('⏹️ Отслеживание остановлено');
+        }
+
+        function updateTrackedMarker(lat, lng, targetId) {
+            if (trackedMarker) {
+                trackedMarker.setLatLng([lat, lng]);
+            } else {
+                trackedMarker = L.marker([lat, lng], {
+                    icon: L.divIcon({
+                        html: '<div style="background: #2196F3; width: 24px; height: 24px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 15px #2196F3;"></div>',
+                        className: ''
+                    })
+                }).addTo(map).bindPopup('👤 ' + targetId);
+            }
+            map.setView([lat, lng], 15);
+            document.getElementById('trackedCoordinates').textContent = 
+                `📍 ${targetId}: ${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+        }
+
+        function switchTab(tab) {
+            document.getElementById('myLocationTab').classList.toggle('active', tab === 'my');
+            document.getElementById('trackTab').classList.toggle('active', tab === 'track');
+            document.getElementById('myPanel').style.display = tab === 'my' ? 'block' : 'none';
+            document.getElementById('trackPanel').style.display = tab === 'track' ? 'block' : 'none';
+        }
+
+        function revokeConsent() {
+            if (confirm('⚠️ Вы уверены?\n\nВСЕ ваши данные будут безвозвратно удалены с сервера. Отслеживание полностью прекратится.')) {
+                stopTracking();
+                database.ref('users/' + userId).remove();
+                localStorage.clear();
+                location.reload();
+            }
+        }
+
+        function showNotification(message) {
+            const notification = document.createElement('div');
+            notification.className = 'notification';
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            setTimeout(() => notification.remove(), 3000);
+        }
+
+        // ============ ЗАПУСК ============
+        if (localStorage.getItem('consentGiven') === 'true') {
+            document.getElementById('consentScreen').classList.add('hidden');
+            document.getElementById('mainScreen').classList.remove('hidden');
+            document.getElementById('myUserId').textContent = 'ID: ' + userId;
+            initMap();
+        }
+    </script>
+</body>
+</html>
